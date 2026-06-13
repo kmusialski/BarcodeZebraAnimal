@@ -195,73 +195,64 @@
     })();
 
     /* ---------------------- przechwytywanie skanu ---------------------- */
-    // DataWedge wysyła treść kodu jako klawisze + Enter (keyboard wedge).
-    // Przechwytujemy na poziomie document — niezależnie od tego, który element
-    // ma focus (Android Chrome na Zebrze bywa kapryśny z focus na ukrytych polach).
-    let buf = "";
-    let lastKey = 0;
-    const SCAN_GAP_MS = 300; // max przerwa między znakami jednego skanu
+    // DataWedge ("keyboard wedge") wpisuje treść kodu do aktywnego pola.
+    // WAŻNE: na Android Chrome poszczególne znaki przychodzą przez IME —
+    // zdarzenia keydown raportują key="Unidentified" (keyCode 229), a prawdziwy
+    // tekst pojawia się WYŁĄCZNIE w polu input (zdarzenie 'input').
+    // Dlatego czytamy VALUE z ukrytego pola #catcher — działa na Androidzie i na desktopie.
+    let scanTimer = null;
+    const COMMIT_IDLE_MS = 200; // po tylu ms ciszy uznajemy skan za kompletny
+
+    function panelShown() { return $("panel").classList.contains("show"); }
 
     function focusCatcher() {
-      if ($("panel").classList.contains("show")) return;
+      if (panelShown()) return;
       try { catcher.focus({ preventScroll: true }); } catch (e) { catcher.focus(); }
     }
-
-    let scanTimer = null;
 
     function commitScan() {
       clearTimeout(scanTimer);
       scanTimer = null;
-      const captured = buf;
-      buf = "";
+      const captured = catcher.value.trim();
       catcher.value = "";
       if (captured) handleScan(captured);
     }
 
-    function onScanKey(e) {
-      // ignoruj klawisze wciśnięte w polu manual-test lub w panelu ustawień
-      const tag = document.activeElement && document.activeElement.tagName;
-      const inPanel = $("panel").classList.contains("show");
-      if (inPanel && e.target !== catcher) return;
-      if (!inPanel && (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") && e.target !== catcher) return;
-
-      const now = Date.now();
-      if (now - lastKey > SCAN_GAP_MS) buf = ""; // reset bufora przy nowym skanie
-      lastKey = now;
-
-      if (e.key === "Enter" || e.key === "Tab") {
-        if (!buf) return;
-        e.preventDefault();
-        commitScan();
-      } else if (e.key.length === 1) {
-        buf += e.key;
-        // timeout: jeśli przez 250ms nie przyjdzie żaden znak → uznaj skan za kompletny
-        clearTimeout(scanTimer);
-        scanTimer = setTimeout(commitScan, 250);
-      }
-    }
-
-    // Nasłuchuj na document (główna metoda) i na catcher (backup)
-    document.addEventListener("keydown", onScanKey, true); // capture phase
-    catcher.addEventListener("keydown", onScanKey);
-
-    // Dodatkowy fallback: DataWedge może też wklejać przez Intent/clipboard
-    // — obsługa przez `input` event na polu catcher
+    // Główne źródło: akumulacja tekstu w polu #catcher.
+    // Skan kończy się, gdy: (a) przyjdzie Enter/Tab, albo (b) minie cisza COMMIT_IDLE_MS.
     catcher.addEventListener("input", () => {
-      const val = catcher.value;
-      if (!val) return;
-      // jeśli DataWedge wkleił całą wartość bez Enter
-      clearTimeout(catcher._pasteTimer);
-      catcher._pasteTimer = setTimeout(() => {
-        if (catcher.value) { handleScan(catcher.value); catcher.value = ""; }
-      }, 120);
+      if (!catcher.value) return;
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(commitScan, COMMIT_IDLE_MS);
     });
+
+    catcher.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (catcher.value) commitScan();
+      }
+    });
+
+    // Jeśli pole straci focus na głównym ekranie — natychmiast je przywróć,
+    // żeby nie zgubić znaków z kolejnego skanu.
+    catcher.addEventListener("blur", () => {
+      if (!panelShown()) setTimeout(focusCatcher, 0);
+    });
+
+    // Backup: gdyby focus uciekł, dowolny klawisz/dotyk przywraca focus na catcher.
+    document.addEventListener("keydown", (e) => {
+      if (panelShown()) return;
+      const tag = e.target && e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+      if (document.activeElement !== catcher) focusCatcher();
+    }, true);
 
     // utrzymuj focus na polu skanera
     document.addEventListener("click", focusCatcher);
     document.addEventListener("touchend", focusCatcher);
     window.addEventListener("focus", focusCatcher);
-    setInterval(focusCatcher, 1500);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) focusCatcher(); });
+    setInterval(focusCatcher, 1000);
 
     /* ------------------------- wyświetlanie ---------------------------- */
     const ANIM_BY_SOUND = {
@@ -361,8 +352,19 @@
     $("animStyle").value = localStorage.getItem("zoo_anim") || "auto";
     $("animStyle").onchange = (e) => localStorage.setItem("zoo_anim", e.target.value);
 
-    $("manualGo").onclick = () => { ZOO.Sound.unlock(); handleScan($("manual").value); };
+    $("manualGo").onclick = () => {
+      ZOO.Sound.unlock();
+      const v = $("manual").value.trim();
+      $("manual").value = ""; // wyczyść, żeby kolejny skan się nie doklejał
+      if (v) handleScan(v);
+    };
     $("manual").addEventListener("keydown", (e) => { if (e.key === "Enter") $("manualGo").click(); });
+    // auto-submit także bez Enter (np. gdy skaner nie wysyła Enter)
+    let manualTimer = null;
+    $("manual").addEventListener("input", () => {
+      clearTimeout(manualTimer);
+      manualTimer = setTimeout(() => { if ($("manual").value.trim()) $("manualGo").click(); }, 250);
+    });
 
     $("impFile").onchange = (e) => {
       const f = e.target.files[0]; if (!f) return;
