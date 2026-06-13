@@ -207,6 +207,17 @@
       try { catcher.focus({ preventScroll: true }); } catch (e) { catcher.focus(); }
     }
 
+    let scanTimer = null;
+
+    function commitScan() {
+      clearTimeout(scanTimer);
+      scanTimer = null;
+      const captured = buf;
+      buf = "";
+      catcher.value = "";
+      if (captured) handleScan(captured);
+    }
+
     function onScanKey(e) {
       // ignoruj klawisze wciśnięte w polu manual-test lub w panelu ustawień
       const tag = document.activeElement && document.activeElement.tagName;
@@ -218,15 +229,15 @@
       if (now - lastKey > SCAN_GAP_MS) buf = ""; // reset bufora przy nowym skanie
       lastKey = now;
 
-      if (e.key === "Enter") {
+      if (e.key === "Enter" || e.key === "Tab") {
         if (!buf) return;
         e.preventDefault();
-        const captured = buf;
-        buf = "";
-        catcher.value = "";
-        handleScan(captured);
+        commitScan();
       } else if (e.key.length === 1) {
         buf += e.key;
+        // timeout: jeśli przez 250ms nie przyjdzie żaden znak → uznaj skan za kompletny
+        clearTimeout(scanTimer);
+        scanTimer = setTimeout(commitScan, 250);
       }
     }
 
