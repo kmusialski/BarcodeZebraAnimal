@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>🏭 Studio Kodów Zwierząt</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:#f4f6fb; color:#222; }
+  header { background:linear-gradient(135deg,#5b2a86,#7c4dff); color:#fff; padding:18px 24px; }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:6px 0 0; opacity:.9; font-size:14px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 4px 18px rgba(20,10,60,.08); padding:18px; margin-bottom:20px; }
+  h2 { margin:0 0 14px; font-size:18px; }
+  .muted { color:#777; font-size:13px; }
+
+  /* siatka zwierząt do zaznaczenia */
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:12px; }
+  .tile { border:2px solid #e6e6f0; border-radius:14px; padding:12px; text-align:center; cursor:pointer;
+    position:relative; transition: all .15s; background:#fff; }
+  .tile:hover { border-color:#b9a8ff; }
+  .tile.sel { border-color:#7c4dff; background:#f3eeff; box-shadow:0 0 0 3px #e3d8ff inset; }
+  .tile .emo { font-size:48px; line-height:1; }
+  .tile .emo img { width:64px; height:64px; object-fit:cover; border-radius:10px; }
+  .tile .nm { font-weight:700; margin-top:6px; }
+  .tile .id { font-size:11px; color:#999; font-family:monospace; }
+  .tile .badge { position:absolute; top:6px; left:6px; font-size:10px; background:#ffd166; color:#5a4500;
+    border-radius:8px; padding:1px 6px; font-weight:700; }
+  .tile .qty { margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .tile .qty input { width:48px; text-align:center; padding:4px; border:1px solid #ddd; border-radius:8px; }
+  .tile .del { position:absolute; top:4px; right:6px; border:none; background:transparent; color:#c33;
+    cursor:pointer; font-size:16px; }
+
+  button, .btn { background:#7c4dff; color:#fff; border:none; border-radius:12px; padding:11px 16px;
+    font-size:15px; font-weight:700; cursor:pointer; }
+  button:hover, .btn:hover { filter:brightness(1.05); }
+  .btn.ghost, button.ghost { background:#ece8fb; color:#5b2a86; }
+  .btn.green { background:#06b87a; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .row > * { flex:0 0 auto; }
+
+  /* formularz dodawania */
+  .form label { display:block; font-weight:700; font-size:13px; margin:12px 0 4px; }
+  .form input[type=text], .form select { width:100%; padding:10px; border:1px solid #ddd; border-radius:10px; font-size:15px; }
+  .form .half { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .preview-emoji { font-size:56px; }
+  .preview-emoji img { width:72px; height:72px; object-fit:cover; border-radius:10px; }
+  input[type=file] { display:none; }
+  .filebtn { display:inline-block; background:#ece8fb; color:#5b2a86; border-radius:10px; padding:9px 14px;
+    font-weight:700; cursor:pointer; }
+
+  /* podgląd kodów do druku */
+  #sheet { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:14px; }
+  .label { border:1px dashed #c9c9d6; border-radius:12px; padding:10px; text-align:center; background:#fff;
+    page-break-inside: avoid; break-inside: avoid; }
+  .label .top { font-size:30px; }
+  .label .top img { width:48px; height:48px; object-fit:cover; border-radius:8px; }
+  .label .nm { font-weight:800; font-size:16px; margin:2px 0 6px; }
+  .label svg { max-width:100%; height:auto; }
+
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#222; color:#fff;
+    padding:12px 18px; border-radius:14px; font-weight:700; display:none; z-index:50; }
+
+  /* DRUK: tylko arkusz etykiet */
+  @media print {
+    body { background:#fff; }
+    header, .card.noprint, .toast { display:none !important; }
+    .wrap { max-width:none; padding:0; margin:0; }
+    #printArea { display:block !important; }
+    #sheet { gap:10px; }
+    .label { border:1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏭 Studio Kodów Zwierząt</h1>
+  <p>Przygotuj obrazki, dodaj własne zwierzęta i wydrukuj kody kreskowe do skanowania na Zebrze.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- KROK 1: wybór zwierząt -->
+  <div class="card noprint">
+    <h2>1️⃣ Wybierz zwierzęta i ilość kopii</h2>
+    <p class="muted">Kliknij kafelek, aby zaznaczyć. Ustaw liczbę kopii każdego kodu.</p>
+    <div class="grid" id="grid"></div>
+    <div class="row" style="margin-top:14px;">
+      <button class="ghost" id="selAll">Zaznacz wszystkie</button>
+      <button class="ghost" id="selNone">Odznacz wszystkie</button>
+    </div>
+  </div>
+
+  <!-- KROK 2: dodaj własne -->
+  <div class="card noprint form">
+    <h2>2️⃣ Dodaj własne zwierzę (obrazek z internetu / AI / emoji)</h2>
+    <div class="half">
+      <div>
+        <label>Nazwa (po polsku)</label>
+        <input type="text" id="aName" placeholder="np. Lampart" />
+
+        <label>Obrazek</label>
+        <div class="row">
+          <label class="filebtn" for="aFile">📁 Wgraj plik</label>
+          <input type="file" id="aFile" accept="image/*" />
+          <button class="ghost" id="aGenAI" type="button">✨ Generuj w AI</button>
+        </div>
+        <label>…lub adres URL obrazka</label>
+        <input type="text" id="aUrl" placeholder="https://…/lampart.png  (zostanie zapisany w katalogu)" />
+        <p class="muted">Bez obrazka użyjemy emoji wpisanego niżej (działa offline na Zebrze).</p>
+
+        <label>Emoji (zapasowy "rysunek")</label>
+        <input type="text" id="aEmoji" placeholder="🐆" maxlength="4" />
+
+        <label>Dźwięk</label>
+        <select id="aSound">
+          <option value="roar">Ryk (lew/tygrys)</option>
+          <option value="growl">Warkot (niedźwiedź)</option>
+          <option value="trumpet">Trąbienie (słoń)</option>
+          <option value="bark">Szczekanie (pies)</option>
+          <option value="meow">Miauczenie (kot)</option>
+          <option value="moo">Muczenie (krowa)</option>
+          <option value="neigh">Rżenie (koń)</option>
+          <option value="oink">Chrumkanie (świnka)</option>
+          <option value="baa">Beczenie (owca)</option>
+          <option value="quack">Kwakanie (kaczka)</option>
+          <option value="ribbit">Rechot (żaba)</option>
+          <option value="monkey">Małpa</option>
+          <option value="howl">Wycie (wilk)</option>
+          <option value="cluck">Gdakanie (kura)</option>
+          <option value="rooster">Pianie (kogut)</option>
+          <option value="hoot">Hukanie (sowa)</option>
+          <option value="hiss">Syczenie (wąż)</option>
+          <option value="buzz">Bzyczenie (pszczoła)</option>
+          <option value="blub">Bulgot (ryba)</option>
+          <option value="tweet">Ćwierkanie (ptak)</option>
+          <option value="chime">Dzwoneczki</option>
+        </select>
+      </div>
+      <div style="text-align:center;">
+        <label>Podgląd</label>
+        <div class="preview-emoji" id="aPreview">🐆</div>
+        <div style="margin-top:10px;">
+          <button class="ghost" id="aTest" type="button">🔊 Posłuchaj dźwięku</button>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="green" id="aAdd" type="button">➕ Dodaj do katalogu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KROK 3: generuj i drukuj -->
+  <div class="card noprint">
+    <h2>3️⃣ Generuj i drukuj kody</h2>
+    <div class="row">
+      <button id="genBtn">🖨️ Generuj podgląd</button>
+      <button class="green" id="printBtn">🖨️ Drukuj</button>
+      <label>Rozmiar kodu:
+        <select id="size">
+          <option value="2">Mały</option>
+          <option value="3" selected>Średni</option>
+          <option value="4">Duży</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- KROK 4: transfer na Zebrę -->
+  <div class="card noprint">
+    <h2>4️⃣ Przenieś własne zwierzęta na skaner (Zebra)</h2>
+    <p class="muted">Skaner ma wbudowane zwierzęta domyślne. Własne przenieś plikiem lub linkiem.</p>
+    <div class="row">
+      <button class="ghost" id="expBtn">💾 Pobierz katalog (.json)</button>
+      <label class="filebtn" for="impBtn">📥 Wczytaj katalog (.json)</label>
+      <input type="file" id="impBtn" accept="application/json,.json" />
+      <button class="ghost" id="linkBtn">🔗 Kopiuj link do skanera</button>
+      <a class="btn ghost" href="scanner.html" target="_blank">▶️ Otwórz skaner</a>
+    </div>
+  </div>
+
+  <!-- ARKUSZ DO DRUKU -->
+  <div class="card" id="printArea" style="display:none;">
+    <h2 class="noprint">📄 Podgląd wydruku</h2>
+    <div id="sheet"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const state = {}; // id -> {sel:bool, qty:int}
+
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.style.display = "block";
+    clearTimeout(t._t); t._t = setTimeout(() => (t.style.display = "none"), 2600);
+  }
+
+  /* ----------------------------- siatka ------------------------------ */
+  function renderGrid() {
+    const cat = ZOO.getCatalog();
+    cat.forEach((a) => { if (!state[a.id]) state[a.id] = { sel: false, qty: 1 }; });
+    $("grid").innerHTML = cat.map((a) => {
+      const st = state[a.id];
+      const vis = a.image
+        ? '<img src="' + a.image + '" alt="">'
+        : (a.emoji || "🖼️");
+      return (
+        '<div class="tile ' + (st.sel ? "sel" : "") + '" data-id="' + a.id + '">' +
+          (a.custom ? '<span class="badge">własne</span>' : "") +
+          (a.custom ? '<button class="del" data-del="' + a.id + '" title="Usuń">✕</button>' : "") +
+          '<div class="emo">' + vis + "</div>" +
+          '<div class="nm">' + a.name + "</div>" +
+          '<div class="id">' + ZOO.barcodeValue(a) + "</div>" +
+          '<div class="qty">×<input type="number" min="1" max="50" value="' + st.qty + '" data-qty="' + a.id + '"></div>' +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  $("grid").addEventListener("click", (e) => {
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      e.stopPropagation();
+      if (confirm("Usunąć to zwierzę z katalogu?")) {
+        ZOO.storage.remove(del.getAttribute("data-del"));
+        renderGrid();
+      }
+      return;
+    }
+    if (e.target.matches("[data-qty]")) return;
+    const tile = e.target.closest(".tile");
+    if (!tile) return;
+    const id = tile.getAttribute("data-id");
+    state[id].sel = !state[id].sel;
+    tile.classList.toggle("sel", state[id].sel);
+  });
+
+  $("grid").addEventListener("input", (e) => {
+    if (e.target.matches("[data-qty]")) {
+      const id = e.target.getAttribute("data-qty");
+      state[id].qty = Math.max(1, Math.min(50, parseInt(e.target.value || "1", 10)));
+    }
+  });
+
+  $("selAll").onclick = () => { Object.keys(state).forEach((id) => (state[id].sel = true)); renderGrid(); };
+  $("selNone").onclick = () => { Object.keys(state).forEach((id) => (state[id].sel = false)); renderGrid(); };
+
+  /* ------------------------- dodawanie własnych ---------------------- */
+  let uploadedImage = null; // dataURL z wgranego pliku
+
+  function updatePreview() {
+    const url = uploadedImage || $("aUrl").value.trim();
+    const emoji = $("aEmoji").value.trim() || "🐾";
+    $("aPreview").innerHTML = url ? '<img src="' + url + '" alt="">' : emoji;
+  }
+  $("aEmoji").addEventListener("input", updatePreview);
+  $("aUrl").addEventListener("input", () => { uploadedImage = null; updatePreview(); });
+
+  $("aFile").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { uploadedImage = r.result; $("aUrl").value = ""; updatePreview(); };
+    r.readAsDataURL(f);
+  };
+
+  $("aGenAI").onclick = () => {
+    const name = $("aName").value.trim() || "zwierzę";
+    const prompt = encodeURIComponent("kolorowy rysunek dla dziecka: " + name + ", kreskówka, białe tło");
+    // otwórz generator obrazów AI z gotowym promptem; wygenerowany obrazek
+    // zapisz i wgraj przyciskiem "Wgraj plik" lub wklej URL.
+    window.open("https://www.bing.com/images/create?q=" + prompt, "_blank");
+    toast("Wygeneruj obrazek w AI, zapisz i wgraj go przyciskiem 📁");
+  };
+
+  $("aTest").onclick = () => { ZOO.Sound.unlock(); ZOO.Sound.effect($("aSound").value); };
+
+  $("aAdd").onclick = () => {
+    const name = $("aName").value.trim();
+    if (!name) { toast("Podaj nazwę zwierzęcia"); return; }
+    const animal = ZOO.normalize({
+      id: ZOO.makeId(name),
+      name: name,
+      emoji: $("aEmoji").value.trim() || "🐾",
+      image: uploadedImage || $("aUrl").value.trim() || null,
+      sound: $("aSound").value
+    });
+    ZOO.storage.upsert(animal);
+    // reset formularza
+    $("aName").value = ""; $("aUrl").value = ""; $("aEmoji").value = "";
+    uploadedImage = null; updatePreview();
+    renderGrid();
+    toast("Dodano: " + animal.name + " 🎉");
+  };
+
+  /* ------------------------ generowanie kodów ------------------------ */
+  function selectedAnimals() {
+    const cat = ZOO.getCatalog();
+    const out = [];
+    cat.forEach((a) => {
+      const st = state[a.id];
+      if (st && st.sel) for (let i = 0; i < st.qty; i++) out.push(a);
+    });
+    return out;
+  }
+
+  function generate() {
+    const list = selectedAnimals();
+    if (!list.length) { toast("Najpierw zaznacz przynajmniej jedno zwierzę"); return false; }
+    const mw = parseInt($("size").value, 10);
+    $("sheet").innerHTML = list.map((a) => {
+      const vis = a.image ? '<img src="' + a.image + '" alt="">' : (a.emoji || "🐾");
+      let svg;
+      try { svg = ZOO.code128svg(ZOO.barcodeValue(a), { moduleWidth: mw, height: mw * 28, fontSize: 12 }); }
+      catch (e) { svg = "<small>błąd kodu</small>"; }
+      return (
+        '<div class="label">' +
+          '<div class="top">' + vis + "</div>" +
+          '<div class="nm">' + a.name + "</div>" +
+          svg +
+        "</div>"
+      );
+    }).join("");
+    $("printArea").style.display = "block";
+    return true;
+  }
+
+  $("genBtn").onclick = () => { if (generate()) $("printArea").scrollIntoView({ behavior: "smooth" }); };
+  $("printBtn").onclick = () => { if (generate()) setTimeout(() => window.print(), 200); };
+  $("size").onchange = () => { if ($("sheet").innerHTML) generate(); };
+
+  /* ----------------------- transfer na Zebrę ------------------------- */
+  $("expBtn").onclick = () => {
+    const custom = ZOO.storage.loadCustom();
+    if (!custom.length) { toast("Brak własnych zwierząt do eksportu"); return; }
+    const blob = new Blob([ZOO.storage.exportJSON()], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "katalog-zwierzat.json";
+    a.click();
+    toast("Pobrano katalog 💾");
+  };
+
+  $("impBtn").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try { const n = ZOO.storage.importJSON(r.result); renderGrid(); toast("Wczytano " + n + " zwierząt"); }
+      catch (err) { toast("Błąd pliku 😕"); }
+    };
+    r.readAsText(f);
+  };
+
+  $("linkBtn").onclick = async () => {
+    const custom = ZOO.storage.loadCustom();
+    if (!custom.length) { toast("Brak własnych zwierząt — link niepotrzebny"); return; }
+    const link = ZOO.storage.shareLink();
+    try { await navigator.clipboard.writeText(link); toast("Skopiowano link do skanera 🔗"); }
+    catch (e) { prompt("Skopiuj link do skanera:", link); }
+  };
+
+  updatePreview();
+  renderGrid();
+})();
+</script>
+</body>
+</html>

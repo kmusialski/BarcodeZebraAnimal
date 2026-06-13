@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>🐾 BarcodeZebraAnimal</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at 30% 20%, #6a3aa8, #2b1a66 60%, #160c33);
+    color:#fff; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .box { max-width:760px; text-align:center; }
+  h1 { font-size: clamp(28px,7vw,46px); margin:0 0 6px; }
+  .sub { opacity:.85; margin-bottom:30px; font-size: clamp(14px,3.5vw,18px); }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:18px; }
+  a.card { display:block; text-decoration:none; color:#fff; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.16); border-radius:20px; padding:26px 22px; transition: all .15s; }
+  a.card:hover { background:rgba(255,255,255,.16); transform: translateY(-3px); }
+  a.card .ico { font-size:64px; }
+  a.card .t { font-size:22px; font-weight:800; margin-top:8px; }
+  a.card .d { opacity:.85; font-size:14px; margin-top:6px; line-height:1.5; }
+  .foot { margin-top:28px; opacity:.7; font-size:13px; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>🐾 BarcodeZebraAnimal</h1>
+    <div class="sub">Skanuj kody kreskowe i poznawaj zwierzęta — obrazek, dźwięk i animacja!</div>
+    <div class="cards">
+      <a class="card" href="scanner.html">
+        <div class="ico">📷</div>
+        <div class="t">Skaner (Zebra)</div>
+        <div class="d">Tryb dla dziecka. Zeskanuj kod, a pojawi się zwierzę z dźwiękiem i animacją. Działa offline.</div>
+      </a>
+      <a class="card" href="studio.html">
+        <div class="ico">🏭</div>
+        <div class="t">Studio (Desktop)</div>
+        <div class="d">Przygotuj obrazki (URL / wgraj / AI), dodaj zwierzęta i wydrukuj wiele kodów kreskowych.</div>
+      </a>
+    </div>
+    <div class="foot">Aplikacja dla córki do szukania zwierząt 💜</div>
+  </div>
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>
