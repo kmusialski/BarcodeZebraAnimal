@@ -195,27 +195,55 @@
     })();
 
     /* ---------------------- przechwytywanie skanu ---------------------- */
-    // DataWedge na Zebrze domyślnie wpisuje treść kodu jako klawisze + Enter.
+    // DataWedge wysyła treść kodu jako klawisze + Enter (keyboard wedge).
+    // Przechwytujemy na poziomie document — niezależnie od tego, który element
+    // ma focus (Android Chrome na Zebrze bywa kapryśny z focus na ukrytych polach).
     let buf = "";
     let lastKey = 0;
+    const SCAN_GAP_MS = 300; // max przerwa między znakami jednego skanu
 
     function focusCatcher() {
-      if ($("panel").classList.contains("show")) return; // nie kradnij focusa w ustawieniach
+      if ($("panel").classList.contains("show")) return;
       try { catcher.focus({ preventScroll: true }); } catch (e) { catcher.focus(); }
     }
 
-    catcher.addEventListener("keydown", (e) => {
+    function onScanKey(e) {
+      // ignoruj klawisze wciśnięte w polu manual-test lub w panelu ustawień
+      const tag = document.activeElement && document.activeElement.tagName;
+      const inPanel = $("panel").classList.contains("show");
+      if (inPanel && e.target !== catcher) return;
+      if (!inPanel && (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") && e.target !== catcher) return;
+
       const now = Date.now();
-      if (now - lastKey > 120) buf = ""; // nowy skan, jeśli przerwa
+      if (now - lastKey > SCAN_GAP_MS) buf = ""; // reset bufora przy nowym skanie
       lastKey = now;
+
       if (e.key === "Enter") {
+        if (!buf) return;
         e.preventDefault();
-        handleScan(buf);
+        const captured = buf;
         buf = "";
         catcher.value = "";
+        handleScan(captured);
       } else if (e.key.length === 1) {
         buf += e.key;
       }
+    }
+
+    // Nasłuchuj na document (główna metoda) i na catcher (backup)
+    document.addEventListener("keydown", onScanKey, true); // capture phase
+    catcher.addEventListener("keydown", onScanKey);
+
+    // Dodatkowy fallback: DataWedge może też wklejać przez Intent/clipboard
+    // — obsługa przez `input` event na polu catcher
+    catcher.addEventListener("input", () => {
+      const val = catcher.value;
+      if (!val) return;
+      // jeśli DataWedge wkleił całą wartość bez Enter
+      clearTimeout(catcher._pasteTimer);
+      catcher._pasteTimer = setTimeout(() => {
+        if (catcher.value) { handleScan(catcher.value); catcher.value = ""; }
+      }, 120);
     });
 
     // utrzymuj focus na polu skanera
